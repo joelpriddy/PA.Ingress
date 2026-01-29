@@ -7,13 +7,6 @@ Shared reverse proxy (nginx) and Cloudflare tunnel infrastructure for Priddy Acr
 - **nginx** - Reverse proxy routing traffic to backend services by hostname
 - **cloudflared** - Cloudflare tunnel connecting the public internet to nginx
 
-## Hostnames
-
-| Hostname | Upstream | Description |
-|----------|----------|-------------|
-| `hive.priddyacres.net` | `pa-hive-inventory-service:8080` | PA.Hive inventory API |
-| `auth.priddyacres.net` | `auth-gateway:8080` | Shared JWT auth service |
-
 ## Deployment
 
 ```bash
@@ -27,14 +20,29 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-## Prerequisites
+## Adding Services
 
-The following containers must be on `ingress-net`:
-- `auth-gateway` (from PA.Gateway)
-- `pa-hive-inventory-service` (from PA.Hive)
+To route traffic to a new service:
 
-Nginx uses dynamic DNS resolution (`resolver 127.0.0.11`) so it starts even if upstreams aren't available yet.
+1. Create a new `.conf` file in `nginx/conf.d/`
+2. Use dynamic DNS resolution for resilience:
+   ```nginx
+   server {
+       listen 80;
+       server_name myapp.priddyacres.net;
+       resolver 127.0.0.11 valid=10s ipv6=off;
+
+       location / {
+           set $upstream myapp-container:8080;
+           proxy_pass http://$upstream;
+       }
+   }
+   ```
+3. Ensure the backend container is on `ingress-net`
+4. Add the hostname to Cloudflare tunnel config
 
 ## Network
 
 All services communicate via the `ingress-net` Docker network. This network is created by this compose project and referenced as `external` by other projects.
+
+Nginx uses dynamic DNS resolution (`resolver 127.0.0.11`) so it starts even if upstreams aren't available yet.
