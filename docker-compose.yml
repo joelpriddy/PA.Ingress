@@ -1,0 +1,36 @@
+services:
+  nginx:
+    build: ./nginx
+    container_name: ingress-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - nginx_logs:/var/log/nginx
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - ingress-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: ingress-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - ingress-net
+    depends_on:
+      - nginx
+
+volumes:
+  nginx_logs:
+
+networks:
+  ingress-net:
+    driver: bridge
+    name: ingress-net
